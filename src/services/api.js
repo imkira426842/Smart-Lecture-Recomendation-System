@@ -3,8 +3,8 @@
    Base URL: VITE_API_BASE_URL env variable
    ───────────────────────────────────────────── */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const IS_CONFIGURED = !!import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = '/api';
+const IS_CONFIGURED = true;
 
 export const apiConfig = { isConfigured: IS_CONFIGURED, baseUrl: BASE_URL };
 
@@ -42,11 +42,14 @@ async function request(path, options = {}) {
     let message = `Request failed: ${res.status}`;
     try {
       const body = await res.json();
-      message = body.detail || body.message || message;
+      message = Array.isArray(body.detail)
+        ? body.detail.map(item => item.msg).join('; ')
+        : body.detail || body.message || message;
     } catch { /* ignore */ }
     throw new Error(message);
   }
 
+  if (res.status === 204) return null;
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) return res.json();
   return res.text();
@@ -130,6 +133,7 @@ export const lecturesAPI = {
 // ── AI Study Assistant ────────────────────────
 
 export const aiAPI = {
+  status: () => request('/ai/status'),
   chat: (messages, context) => request('/ai/chat', { method: 'POST', body: JSON.stringify({ messages, context }) }),
   summarize: (data) => request('/ai/summarize', { method: 'POST', body: JSON.stringify(data) }),
   generateNotes: (data) => request('/ai/notes/generate', { method: 'POST', body: JSON.stringify(data) }),
@@ -177,6 +181,7 @@ export const examAPI = {
 // ── Study Planner ─────────────────────────────
 
 export const plannerAPI = {
+  generateCrashPlan: (data) => request('/planner/crash-plan', { method: 'POST', body: JSON.stringify(data) }),
   getTasks: (params) => {
     const q = new URLSearchParams(params).toString();
     return request(`/planner/tasks${q ? '?' + q : ''}`);
@@ -194,6 +199,8 @@ export const analyticsAPI = {
   getActivityLog: () => request('/analytics/activity'),
   getWeakTopics: () => request('/analytics/weak-topics'),
 };
+
+export const learningAPI = { get: () => request('/learning') };
 
 export default {
   auth: authAPI,

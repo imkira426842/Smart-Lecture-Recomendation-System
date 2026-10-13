@@ -1,7 +1,7 @@
 // Demo data for when backend is not configured
 // All demo data is clearly labeled to prevent confusion with real data
 
-export const DEMO_MODE = !import.meta.env.VITE_API_BASE_URL;
+export const DEMO_MODE = false;
 
 export const demoUser = {
   id: 'demo-001',

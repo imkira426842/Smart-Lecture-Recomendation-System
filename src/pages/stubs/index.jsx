@@ -1,93 +1,207 @@
-/**
- * Stub pages for routes not yet fully implemented.
- * Each page exports a clean "coming soon" UI so the router works
- * and navigation links don't 404. Replace each stub with a real
- * implementation when ready.
- */
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import * as api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import './stubs.css';
 
-function ComingSoon({ icon, title, description, items = [] }) {
-  return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle">{description}</p>
-      </div>
-      <div className="card-lp" style={{ maxWidth: 640 }}>
-        <div style={{
-          width: 60, height: 60, borderRadius: 16,
-          background: 'var(--color-primary-light)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, marginBottom: 20,
-        }}>
-          {icon}
-        </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{title}</h2>
-        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: items.length ? 24 : 0 }}>
-          {description} This page is currently under construction and will be available soon.
-        </p>
-        {items.length > 0 && (
-          <ul style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 0, listStyle: 'none' }}>
-            {items.map(item => (
-              <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0 }} />
-                {item}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--color-border)' }}>
-          <Link to="/app/overview" className="btn-lp btn-secondary btn-sm">← Back to Dashboard</Link>
-        </div>
-      </div>
-    </div>
-  );
+const { aiAPI, notesAPI, flashcardsAPI, quizAPI, examAPI, plannerAPI, curriculumAPI, analyticsAPI, profileAPI, lecturesAPI, authAPI } = api;
+const unwrap = (value, key) => value?.[key] ?? value ?? [];
+const messageOf = (err) => err?.message === 'BACKEND_NOT_CONFIGURED'
+  ? 'Connect your LearnPilot account to the study service to continue.'
+  : (err?.message || 'Something went wrong. Please try again.');
+
+function Header({ title, subtitle, children }) {
+  return <div className="page-header lp-between"><div><h1 className="page-title">{title}</h1><p className="page-subtitle">{subtitle}</p></div>{children}</div>;
 }
+function Field({ label, children, wide = false }) { return <div className={`form-group ${wide ? 'wide' : ''}`}><label className="form-label">{label}</label>{children}</div>; }
+function Input({ label, wide, ...props }) { return <Field label={label} wide={wide}><input className="form-control-lp" {...props} /></Field>; }
+function Select({ label, children, ...props }) { return <Field label={label}><select className="form-control-lp form-select-lp" {...props}>{children}</select></Field>; }
+function ErrorBox({ error, retry }) { return error ? <div className="lp-alert" role="alert"><div className="lp-between"><span>{messageOf(error)}</span>{retry && <button className="btn-lp btn-secondary btn-sm" onClick={retry}>Try again</button>}</div></div> : null; }
+function Loading({ label = 'Loading your study space…' }) { return <div className="lp-card" aria-live="polite"><div className="skeleton" style={{ height: 14, width: '34%', marginBottom: 16 }} /><div className="skeleton" style={{ height: 72, width: '100%' }} /><p className="lp-muted lp-small">{label}</p></div>; }
+function Empty({ title, text }) { return <div className="lp-empty"><h3>{title}</h3><p className="lp-muted">{text}</p></div>; }
+function GuestGate() { return <div className="lp-page"><Header title="Your study space" subtitle="Your learning tools are ready when you are."/><div className="lp-card" style={{ maxWidth: 620 }}><h2>Sign in to continue</h2><p className="lp-muted">Your learning history and study material are private to your account. Sign in to load and save them.</p><Link className="btn-lp btn-primary" to="/signin">Sign in</Link></div></div>; }
+function useProtected() { const { isGuest, isLoggedIn } = useAuth(); return { blocked: isGuest || !isLoggedIn }; }
+function Page({ title, subtitle, children }) { return <div className="lp-page"><Header title={title} subtitle={subtitle}/>{children}</div>; }
+function Markdown({ children }) { return <div className="lp-markdown"><ReactMarkdown>{children || ''}</ReactMarkdown></div>; }
+function useLoad(loader, blocked, deps = []) {
+  const [data, setData] = useState(null), [loading, setLoading] = useState(!blocked), [error, setError] = useState(null), [tick, setTick] = useState(0);
+  const reload = useCallback(() => setTick(x => x + 1), []);
+  useEffect(() => {
+    if (blocked) { setLoading(false); return; }
+    let live = true; setLoading(true); setError(null);
+    Promise.resolve().then(loader).then(v => { if (live) setData(v); }).catch(e => { if (live) setError(e); }).finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  // loader is intentionally keyed by explicit dependencies; consumers memoize or pass stable API calls.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocked, tick, ...deps]);
+  return { data, setData, loading, error, reload, setError };
+}
+const asDate = (v) => v ? new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+const curriculumOptions = (curriculum) => (curriculum?.subjects || []).flatMap(s => (s.units || []).flatMap(u => (u.topics || []).map(t => ({ subject: s.name, topic: t.name, status: t.status, label: `${s.name} / ${t.name}` }))));
 
 export function MyLearning() {
-  return <ComingSoon icon="🎓" title="My Learning" description="Track your watched lectures, completed topics, and saved resources all in one place." items={['Watch history', 'Completed topics tracker', 'Saved resources library', 'Learning streaks']} />;
+  const { blocked } = useProtected();
+  const { data, loading, error, reload } = useLoad(() => api.learningAPI?.get?.(), blocked);
+  if (blocked) return <GuestGate/>;
+  return <Page title="My learning" subtitle="Your saved lectures, completed topics, and learning rhythm.">
+    <ErrorBox error={error} retry={reload}/>
+    {loading ? <Loading/> : !data ? <div className="lp-card"><Empty title="Learning history is unavailable" text="The learning service could not be reached. Try again shortly."/><button className="btn-lp btn-secondary" onClick={reload}>Reload learning</button></div> : <>
+      <div className="lp-grid">
+        <div className="lp-card lp-col-4"><div className="lp-muted lp-small">Current streak</div><h2>{data.streak ?? 0} days</h2><p className="lp-muted">Keep a small daily session going.</p></div>
+        <div className="lp-card lp-col-8"><h2>Completed topics</h2>{data.completed_topics?.length ? data.completed_topics.map(t=><div className="lp-topic-row" key={t.id}><span>{t.name}</span><span className="lp-muted">{t.subject}</span></div>) : <Empty title="No topics completed yet" text="Finish a topic from your curriculum and it will show up here."/>}</div>
+        <div className="lp-card lp-col-12"><h2>Saved lectures</h2>{data.lectures?.filter(l=>l.isBookmarked).length ? <div className="lp-list">{data.lectures.filter(l=>l.isBookmarked).map(l=><LectureRow key={l.id} lecture={l} reload={reload}/>)}</div> : <Empty title="Your library is waiting" text="Bookmark a recommended lecture to keep it close."/ >}</div>
+        <div className="lp-card lp-col-12"><h2>Watch history</h2>{data.lectures?.filter(l=>l.isWatched).length ? <div className="lp-list">{data.lectures.filter(l=>l.isWatched).map(l=><LectureRow key={l.id} lecture={l} reload={reload}/>)}</div> : <Empty title="No watched lectures yet" text="Lectures you mark as watched will be collected here."/ >}</div>
+      </div>
+    </>}
+  </Page>;
+}
+function LectureRow({ lecture, reload }) {
+  const [busy, setBusy] = useState(false), [err, setErr] = useState('');
+  const act = async fn => { setBusy(true); setErr(''); try { await fn(lecture.id); reload(); } catch(e) { setErr(messageOf(e)); } finally { setBusy(false); } };
+  return <div className="lp-list-item lp-between"><div><strong>{lecture.title}</strong><div className="lp-muted lp-small">{lecture.channel || lecture.topic || 'Lecture'}{lecture.isWatched ? ' · Watched' : ''}</div></div><div className="lp-row">{err && <span className="lp-small" role="alert">{err}</span>}<a className="btn-lp btn-secondary btn-sm" href={lecture.url} target="_blank" rel="noreferrer">Watch</a>{!lecture.isWatched && <button disabled={busy} className="btn-lp btn-secondary btn-sm" onClick={()=>act(lecturesAPI.markWatched)}>Mark watched</button>}</div></div>;
 }
 
 export function AIAssistant() {
-  return <ComingSoon icon="🤖" title="AI Study Assistant" description="Ask questions, get explanations in English or Hindi, and generate notes powered by AI." items={['Chat interface with message history', 'Context selector (subject/topic)', 'Markdown + code formatting', 'Suggested starter prompts']} />;
+  const { blocked } = useProtected(), [messages, setMessages] = useState([]), [subject, setSubject] = useState(''), [topic, setTopic] = useState(''), [text, setText] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [configured, setConfigured] = useState(true);
+  useEffect(()=>{ if (!blocked && aiAPI.status) aiAPI.status().then(s=>setConfigured(s.configured)).catch(()=>setConfigured(true)); },[blocked]);
+  const send = async e => { e.preventDefault(); if (!text.trim() || busy) return; const next=[...messages,{role:'user',content:text.trim()}]; setMessages(next); setText(''); setBusy(true); setError(''); try { const r=await aiAPI.chat(next.map(m=>({role:m.role,content:m.content})),{subject,topic}); setMessages([...next,{role:'assistant',content:r.reply}]); } catch(err) { setError(messageOf(err)); } finally { setBusy(false); } };
+  if (blocked) return <GuestGate/>;
+  return <Page title="Study assistant" subtitle="A context-aware conversation for the question in front of you.">
+    {!configured && <div className="lp-alert info">AI study tools are temporarily unavailable. Your conversation will stay on this page.</div>}
+    {error && <ErrorBox error={new Error(error)}/>}
+    <div className="lp-grid"><div className="lp-card lp-col-12"><div className="lp-between"><div><h2>Ask your study companion</h2><p className="lp-muted lp-small">Choose a subject or topic to keep answers grounded.</p></div><button className="btn-lp btn-secondary btn-sm" onClick={()=>{setMessages([]);setError('');}}>Clear history</button></div>
+      <div className="lp-form" style={{marginTop:16}}><Input label="Subject context" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="For example, cell biology"/><Input label="Topic context" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="For example, gene expression"/></div>
+      <div className="lp-chat" aria-live="polite">{messages.length===0 ? <div className="lp-empty"><h3>Start with one good question</h3><p className="lp-muted">Ask for an explanation, an example, or a quick knowledge check.</p></div> : messages.map((m,i)=><div key={i} className={`lp-message ${m.role==='user'?'user':''}`}><div className="lp-small lp-muted">{m.role==='user'?'You':'LearnPilot'}</div><Markdown>{m.content}</Markdown></div>)}{busy&&<div className="lp-message" aria-label="Assistant is responding"><div className="skeleton" style={{width:180,height:12}}/></div>}</div>
+      <form className="lp-row" onSubmit={send}><input className="form-control-lp" aria-label="Message" value={text} onChange={e=>setText(e.target.value)} placeholder="Ask a question…" style={{flex:1}}/><button disabled={busy||!text.trim()} className="btn-lp btn-primary">{busy?'Thinking…':'Send'}</button></form>
+    </div></div>
+  </Page>;
 }
 
 export function LectureSummarizer() {
-  return <ComingSoon icon="📝" title="Lecture Summarizer" description="Paste a YouTube URL or transcript to get key concepts, definitions, and revision points." items={['YouTube URL input', 'Key concept extraction', 'Revision bullet points', 'Copy & download summary']} />;
+  const { blocked } = useProtected(), [form,setForm]=useState({text:'',url:'',length:'medium',language:'English'}), [result,setResult]=useState(null), [busy,setBusy]=useState(false), [error,setError]=useState(''), [saved,setSaved]=useState(false);
+  if (blocked) return <GuestGate/>;
+  const submit=async e=>{e.preventDefault(); if(!form.text.trim()&&!form.url.trim()) {setError('Add a transcript or a YouTube URL first.');return;} setBusy(true);setError('');setSaved(false);try{setResult(await aiAPI.summarize({...form,text:form.text.trim(),url:form.url.trim()}));}catch(err){setError(messageOf(err));}finally{setBusy(false);}};
+  const save=async()=>{setBusy(true);setError('');try{await notesAPI.create({title:`Lecture summary${form.url?' — video':''}`,content:`# Summary\n\n${result.summary}\n\n## Key concepts\n${(result.key_concepts||[]).map(x=>`- ${x}`).join('\n')}\n\n## Revision points\n${(result.revision_points||[]).map(x=>`- ${x}`).join('\n')}`,subject:'',topic:'',source:form.url||'Transcript'});setSaved(true);}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  return <Page title="Lecture summarizer" subtitle="Turn a transcript or video into material you can revise."><div className="lp-grid">
+    <form className="lp-card lp-col-5 lp-stack" onSubmit={submit}><h2>Source material</h2><Field label="YouTube URL"><input className="form-control-lp" type="url" value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://youtube.com/watch?v=…"/></Field><Field label="Transcript"><textarea className="form-control-lp" rows="9" value={form.text} onChange={e=>setForm({...form,text:e.target.value})} placeholder="Paste lecture transcript here"/></Field><div className="lp-form"><Select label="Summary length" value={form.length} onChange={e=>setForm({...form,length:e.target.value})}><option value="short">Short</option><option value="medium">Balanced</option><option value="detailed">Detailed</option></Select><Select label="Language" value={form.language} onChange={e=>setForm({...form,language:e.target.value})}><option>English</option><option>Hindi</option></Select></div><button disabled={busy} className="btn-lp btn-primary">{busy?'Summarizing…':'Create summary'}</button>{error&&<ErrorBox error={new Error(error)}/>}</form>
+    <div className="lp-card lp-col-7">{!result?<Empty title="Your structured summary will appear here" text="Add a transcript or video link and choose the level of detail."/>:<><div className="lp-between"><h2>Revision brief</h2><button disabled={busy||saved} className="btn-lp btn-secondary btn-sm" onClick={save}>{saved?'Saved to notes':'Save to notes'}</button></div><h3>Summary</h3><Markdown>{result.summary}</Markdown><h3>Key concepts</h3><ul>{(result.key_concepts||[]).map((x,i)=><li key={i}>{x}</li>)}</ul><h3>Definitions</h3><div className="lp-list">{(result.definitions||[]).map((d,i)=><div className="lp-list-item" key={i}><strong>{d.term}</strong><p className="lp-muted">{d.definition}</p></div>)}</div><h3>Revision points</h3><ul>{(result.revision_points||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></>}</div>
+  </div></Page>;
 }
 
 export function AINotes() {
-  return <ComingSoon icon="🗒️" title="AI Notes" description="Generate, edit, and organize notes by subject and topic with AI assistance." items={['Generate notes from topic/document', 'Edit and format notes', 'Subject/topic organization', 'Search and filter']} />;
+  const { blocked }=useProtected(), load=useLoad(()=>notesAPI.getAll(),blocked), notes=unwrap(load.data,'notes');
+  const [current,setCurrent]=useState(null),[form,setForm]=useState({title:'',content:'',subject:'',topic:'',source:'manual'}),[search,setSearch]=useState(''),[gen,setGen]=useState({topic:'',subject:'',language:'English'}),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  useEffect(()=>{if(!current){setForm({title:'',content:'',subject:'',topic:'',source:'manual'});return;}setForm({title:current.title||'',content:current.content||'',subject:current.subject||'',topic:current.topic||'',source:current.source||'manual'});},[current]);
+  if(blocked)return <GuestGate/>;
+  const save=async e=>{e.preventDefault();setBusy(true);setError('');try{if(current)await notesAPI.update(current.id,form);else await notesAPI.create(form);setCurrent(null);load.reload();}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const generate=async e=>{e.preventDefault();setBusy(true);setError('');try{const r=await aiAPI.generateNotes(gen);setForm({title:r.topic||gen.topic,content:r.content,subject:r.subject||gen.subject,topic:r.topic||gen.topic,source:'AI generated'});setCurrent(null);}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const remove=async n=>{if(!window.confirm(`Delete “${n.title}”? This cannot be undone.`))return;try{await notesAPI.delete(n.id);if(current?.id===n.id)setCurrent(null);load.reload();}catch(e){setError(messageOf(e));}};
+  const exportNote=n=>{const blob=new Blob([`# ${n.title}\n\n${n.content}`],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${(n.title||'learnpilot-note').replace(/[^a-z0-9-_]+/gi,'-')}.md`;a.click();URL.revokeObjectURL(a.href);};
+  const filtered=notes.filter(n=>`${n.title} ${n.content} ${n.subject} ${n.topic}`.toLowerCase().includes(search.toLowerCase()));
+  return <Page title="Notes" subtitle="Generate, edit, and keep your study notes in one searchable place."><ErrorBox error={error?new Error(error):load.error} retry={load.reload}/>{load.loading?<Loading/>:<div className="lp-grid">
+    <div className="lp-card lp-col-4 lp-stack"><h2>Generate with AI</h2><form className="lp-form" onSubmit={generate}><Input label="Topic" value={gen.topic} onChange={e=>setGen({...gen,topic:e.target.value})} required/><Input label="Subject" value={gen.subject} onChange={e=>setGen({...gen,subject:e.target.value})}/><Select label="Language" value={gen.language} onChange={e=>setGen({...gen,language:e.target.value})}><option>English</option><option>Hindi</option></Select><button disabled={busy} className="btn-lp btn-primary wide">{busy?'Generating…':'Generate notes'}</button></form><hr className="divider"/><div className="lp-between"><h2>Your notes</h2><button className="btn-lp btn-secondary btn-sm" onClick={()=>setCurrent(null)}>New note</button></div><input className="form-control-lp" aria-label="Search notes" placeholder="Search notes" value={search} onChange={e=>setSearch(e.target.value)}/>{filtered.length?<div className="lp-list">{filtered.map(n=><div className="lp-list-item" key={n.id}><button className="btn-lp btn-ghost" style={{padding:0,whiteSpace:'normal',textAlign:'left'}} onClick={()=>setCurrent(n)}><strong>{n.title}</strong></button><div className="lp-muted lp-small">{n.subject||'Personal'} · {asDate(n.updated_at||n.created_at)}</div><div className="lp-row" style={{marginTop:8}}><button className="btn-lp btn-secondary btn-sm" onClick={()=>exportNote(n)}>Export .md</button><button className="btn-lp btn-danger btn-sm" onClick={()=>remove(n)}>Delete</button></div></div>)}</div>:<Empty title="No matching notes" text="Create a manual note or generate one from a topic."/ >}</div>
+    <form className="lp-card lp-col-8 lp-stack" onSubmit={save}><div className="lp-between"><h2>{current?'Edit note':'Write a note'}</h2><span className="lp-pill">{form.source||'manual'}</span></div><Input label="Title" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} required/><div className="lp-form"><Input label="Subject" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/><Input label="Topic" value={form.topic} onChange={e=>setForm({...form,topic:e.target.value})}/></div><Field label="Markdown content"><textarea className="form-control-lp" rows="16" value={form.content} onChange={e=>setForm({...form,content:e.target.value})} required placeholder="Capture the idea while it is fresh…"/></Field><div className="lp-row"><button disabled={busy} className="btn-lp btn-primary">{busy?'Saving…':current?'Save changes':'Save note'}</button><button type="button" className="btn-lp btn-secondary" onClick={()=>setCurrent(null)}>Clear</button></div></form>
+  </div>}</Page>;
 }
 
 export function Flashcards() {
-  return <ComingSoon icon="🃏" title="Flashcards" description="Create and study topic-based flashcards with spaced repetition." items={['Auto-generate from topic or notes', 'Flip cards with reveal animation', 'Study sessions with progress tracking', 'Import/export decks']} />;
+  const {blocked}=useProtected(),load=useLoad(()=>flashcardsAPI.getSets(),blocked),sets=unwrap(load.data,'sets');
+  const [selected,setSelected]=useState(null),[index,setIndex]=useState(0),[flipped,setFlipped]=useState(false),[form,setForm]=useState({topic:'',subject:'',count:10,language:'English'}),[manual,setManual]=useState({title:'',subject:'',topic:'',cards:[{front:'',back:''}]}),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  if(blocked)return <GuestGate/>;
+  const generate=async e=>{e.preventDefault();setBusy(true);setError('');try{const r=await aiAPI.generateFlashcards({...form,count:Number(form.count)});const saved=await flashcardsAPI.saveSet({title:r.topic||form.topic,subject:r.subject||form.subject,topic:r.topic||form.topic,cards:r.cards});setSelected(saved);load.reload();}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const saveManual=async e=>{e.preventDefault();setBusy(true);setError('');try{const s=await flashcardsAPI.saveSet(manual);setSelected(s);setManual({...manual,title:'',cards:[{front:'',back:''}]});load.reload();}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const open=async s=>{try{const result=await flashcardsAPI.getSet(s.id);setSelected(result);setIndex(0);setFlipped(false);}catch(e){setError(messageOf(e));}};
+  const setKnown=async known=>{const c=selected?.cards?.[index];if(!c)return;try{const updated=await flashcardsAPI.updateCard(selected.id,c.id,{known});setSelected({...selected,cards:selected.cards.map(x=>x.id===c.id?{...x,...updated,known}:x)});if(index<selected.cards.length-1){setIndex(index+1);setFlipped(false);}}catch(e){setError(messageOf(e));}};
+  const del=async s=>{if(!window.confirm(`Delete the “${s.title}” set?`))return;try{await flashcardsAPI.deleteSet(s.id);if(selected?.id===s.id)setSelected(null);load.reload();}catch(e){setError(messageOf(e));}};
+  const card=selected?.cards?.[index];
+  return <Page title="Flashcards" subtitle="Make recall active: flip, answer, and mark what you know."><ErrorBox error={error?new Error(error):load.error} retry={load.reload}/>{load.loading?<Loading/>:<div className="lp-grid">
+    <div className="lp-card lp-col-5 lp-stack"><h2>Generate a set</h2><form className="lp-form" onSubmit={generate}><Input label="Topic" value={form.topic} onChange={e=>setForm({...form,topic:e.target.value})} required/><Input label="Subject" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/><Input label="Cards" type="number" min="2" max="50" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/><Select label="Language" value={form.language} onChange={e=>setForm({...form,language:e.target.value})}><option>English</option><option>Hindi</option></Select><button disabled={busy} className="btn-lp btn-primary wide">{busy?'Generating…':'Generate flashcards'}</button></form>
+      <hr className="divider"/><h2>Make a set manually</h2><form className="lp-stack" onSubmit={saveManual}><Input label="Set title" value={manual.title} onChange={e=>setManual({...manual,title:e.target.value})} required/><div className="lp-form"><Input label="Subject" value={manual.subject} onChange={e=>setManual({...manual,subject:e.target.value})}/><Input label="Topic" value={manual.topic} onChange={e=>setManual({...manual,topic:e.target.value})}/></div>{manual.cards.map((c,i)=><div className="lp-form lp-list-item" key={i}><Field label={`Front ${i+1}`}><textarea className="form-control-lp" value={c.front} onChange={e=>setManual({...manual,cards:manual.cards.map((x,j)=>i===j?{...x,front:e.target.value}:x)})} required/></Field><Field label="Back"><textarea className="form-control-lp" value={c.back} onChange={e=>setManual({...manual,cards:manual.cards.map((x,j)=>i===j?{...x,back:e.target.value}:x)})} required/></Field></div>)}<div className="lp-row"><button type="button" className="btn-lp btn-secondary btn-sm" onClick={()=>setManual({...manual,cards:[...manual.cards,{front:'',back:''}]})}>Add card</button>{manual.cards.length>1&&<button type="button" className="btn-lp btn-ghost btn-sm" onClick={()=>setManual({...manual,cards:manual.cards.slice(0,-1)})}>Remove last</button>}<button disabled={busy} className="btn-lp btn-primary">Save set</button></div></form>
+      <hr className="divider"/><h2>Saved sets</h2>{sets.length?<div className="lp-list">{sets.map(s=><div className="lp-list-item lp-between" key={s.id}><button className="btn-lp btn-ghost" onClick={()=>open(s)}>{s.title} <span className="lp-muted">({s.cards?.length||0})</span></button><button className="btn-lp btn-danger btn-sm" onClick={()=>del(s)}>Delete</button></div>)}</div>:<Empty title="No sets yet" text="Generate or create your first set above."/ >}</div>
+    <div className="lp-card lp-col-7">{!selected||!card?<Empty title="Choose a set to begin" text="Your study card and session progress will appear here."/>:<><div className="lp-between"><div><h2>{selected.title}</h2><p className="lp-muted lp-small">{index+1} of {selected.cards.length} cards</p></div><span className="lp-pill">{selected.cards.filter(c=>c.known).length} known</span></div><div className="lp-meter"><span style={{width:`${((index+1)/selected.cards.length)*100}%`}}/></div><button className="lp-flip" onClick={()=>setFlipped(!flipped)} aria-label={flipped?'Show question':'Reveal answer'}><span className={`lp-flip-inner ${flipped?'revealed':''}`}><span><span className="lp-muted lp-small">{flipped?'ANSWER':'QUESTION'}</span><br/><strong>{flipped?card.back:card.front}</strong><br/><span className="lp-muted lp-small">Select to {flipped?'hide answer':'reveal answer'}</span></span></span></button><div className="lp-between"><button disabled={index===0} className="btn-lp btn-secondary" onClick={()=>{setIndex(index-1);setFlipped(false);}}>Previous</button><div className="lp-row"><button disabled={!flipped} className="btn-lp btn-secondary" onClick={()=>setKnown(false)}>Still learning</button><button disabled={!flipped} className="btn-lp btn-primary" onClick={()=>setKnown(true)}>I know this</button></div><button disabled={index>=selected.cards.length-1} className="btn-lp btn-secondary" onClick={()=>{setIndex(index+1);setFlipped(false);}}>Next</button></div></>}</div>
+  </div>}</Page>;
 }
 
-export function QuizGenerator() {
-  return <ComingSoon icon="❓" title="Quiz Generator" description="Auto-generate MCQ quizzes from any topic in your curriculum." items={['Select topic or subject', 'Multiple choice questions with explanations', 'Score tracking and review', 'Difficulty settings']} />;
+function Assessment({ exam = false }) {
+  const {blocked}=useProtected(), apiClient=exam?examAPI:quizAPI, historyLoad=useLoad(()=>apiClient.getHistory(),blocked);
+  const [curriculum,setCurriculum]=useState(null),[form,setForm]=useState({topic:'',subject:'',count:10,difficulty:'medium',language:'English',duration_minutes:30}),[assessment,setAssessment]=useState(null),[answers,setAnswers]=useState([]),[result,setResult]=useState(null),[seconds,setSeconds]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  useEffect(()=>{if(blocked)return;curriculumAPI.getAll().then(setCurriculum).catch(()=>{});},[blocked]);
+  useEffect(()=>{if(!assessment||result||seconds===null)return; if(seconds<=0){submitAssessment();return;}const timer=window.setTimeout(()=>setSeconds(seconds-1),1000);return()=>window.clearTimeout(timer);},[assessment,result,seconds]);
+  const topics=curriculumOptions(curriculum);
+  const submitAssessment=async()=>{if(!assessment||busy||result)return;setBusy(true);setError('');try{const res=exam?await examAPI.submit(assessment.id,{answers}):await quizAPI.submit(assessment.id,answers);setResult(res);setAssessment(null);historyLoad.reload();}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const start=async e=>{e.preventDefault();setBusy(true);setError('');setResult(null);try{const payload={...form,count:Number(form.count)};if(exam)payload.duration_minutes=Number(form.duration_minutes);const created=exam?await examAPI.create(payload):await aiAPI.generateQuiz(payload);setAssessment(created);setAnswers(Array(created.questions?.length||0).fill(null));setSeconds(created.duration_seconds||Number(form.duration_minutes)*60);}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const openResult=async item=>{try{const r=await apiClient.getResults(item.id);setResult(r);setAssessment(null);}catch(e){setError(messageOf(e));}};
+  const clearResult=()=>{setResult(null);setAssessment(null);setSeconds(null);};
+  const fmtTime=s=>`${Math.floor(Math.max(0,s)/60).toString().padStart(2,'0')}:${(Math.max(0,s)%60).toString().padStart(2,'0')}`;
+  const history=unwrap(historyLoad.data,'history');
+  if(blocked)return <GuestGate/>;
+  return <Page title={exam?'Mock exams':'Quiz generator'} subtitle={exam?'Simulate exam conditions, then review every answer.':'Build a focused quiz and learn from the result.'}>
+    <ErrorBox error={error?new Error(error):historyLoad.error} retry={historyLoad.reload}/>
+    {assessment ? <div className="lp-card lp-stack"><div className="lp-between"><div><h2>{assessment.topic||form.topic}</h2><p className="lp-muted">{assessment.questions?.length||0} questions</p></div><div className="lp-pill" aria-live="polite">Time remaining {fmtTime(seconds??0)}</div></div>
+      {(assessment.questions||[]).map((q,i)=><fieldset key={i} className="lp-list-item" style={{border:0,borderTop:'1px solid var(--color-border)',borderRadius:0}}><legend><strong>{i+1}. {q.text}</strong></legend><div className="lp-stack" style={{marginTop:10}}>{(q.options||[]).map((o,j)=><label className="checkbox-lp" key={j}><input type="radio" name={`question-${i}`} checked={answers[i]===j} onChange={()=>setAnswers(answers.map((x,k)=>k===i?j:x))}/><span className="checkbox-lp-label">{o}</span></label>)}</div></fieldset>)}
+      <div className="lp-row"><button disabled={busy} className="btn-lp btn-primary" onClick={submitAssessment}>{busy?'Submitting…':'Submit answers'}</button><button className="btn-lp btn-secondary" onClick={()=>{if(window.confirm('Leave this attempt without submitting?'))clearResult();}}>Cancel attempt</button></div>
+    </div> : <div className="lp-grid">
+      {!result&&<form className="lp-card lp-col-5 lp-stack" onSubmit={start}><h2>{exam?'Configure mock exam':'Create a quiz'}</h2><p className="lp-muted lp-small">Choose a curriculum topic or enter a topic of your own.</p>{topics.length>0&&<Field label="Curriculum topic"><select className="form-control-lp form-select-lp" value="" onChange={e=>{const t=topics.find(x=>x.label===e.target.value);if(t)setForm({...form,topic:t.topic,subject:t.subject});}}><option value="">Select a topic</option>{topics.map(t=><option key={t.label} value={t.label}>{t.label}</option>)}</select></Field>}<Input label="Topic" value={form.topic} onChange={e=>setForm({...form,topic:e.target.value})} required/><Input label="Subject" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/><div className="lp-form"><Input label="Question count" type="number" min="1" max="50" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/><Select label="Difficulty" value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></Select></div>{exam?<Input label="Time limit (minutes)" type="number" min="1" max="240" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>:<Select label="Language" value={form.language} onChange={e=>setForm({...form,language:e.target.value})}><option>English</option><option>Hindi</option></Select>}<button disabled={busy} className="btn-lp btn-primary">{busy?'Preparing…':exam?'Start timed exam':'Generate quiz'}</button></form>}
+      <div className={`lp-card ${result?'lp-col-12':'lp-col-7'}`}>{result?<><div className="lp-between"><div><h2>{result.title||result.topic||'Assessment review'}</h2><p className="lp-muted">{asDate(result.taken_at)}</p></div><div className="lp-pill">{result.score}/{result.total} correct · {result.percent}%</div></div><div className="lp-meter"><span style={{width:`${result.percent||0}%`}}/></div><div className="lp-stack" style={{marginTop:18}}>{(result.questions||[]).map((q,i)=><div className="lp-list-item" key={i}><strong>{i+1}. {q.text}</strong><p className="lp-small">Your answer: {result.answers?.[i] == null ? 'Not answered' : q.options?.[result.answers[i]]}</p><p className="lp-small">Correct answer: {q.options?.[q.correct]}</p>{q.explanation&&<p className="lp-muted lp-small">{q.explanation}</p>}</div>)}</div><button className="btn-lp btn-primary" onClick={clearResult}>Start another</button></>:<><h2>Recent attempts</h2>{historyLoad.loading?<Loading/>:history.length?<div className="lp-table-wrap"><table className="lp-table"><thead><tr><th>Assessment</th><th>Score</th><th>Date</th><th></th></tr></thead><tbody>{history.map(h=><tr key={h.id}><td>{h.title||h.topic||'Assessment'}</td><td>{h.score}/{h.total}</td><td>{asDate(h.taken_at)}</td><td><button className="btn-lp btn-secondary btn-sm" onClick={()=>openResult(h)}>Review</button></td></tr>)}</tbody></table></div>:<Empty title="No attempts yet" text="Your completed assessments and scores will appear here."/ >}</>}</div>
+    </div>}
+  </Page>;
 }
-
-export function MockExams() {
-  return <ComingSoon icon="📋" title="Mock Exams" description="Full timed mock exams with mixed topics to simulate real exam conditions." items={['Timed full-length exams', 'Mixed topic question sets', 'Detailed score analysis', 'Performance comparison']} />;
-}
+export function QuizGenerator(){return <Assessment/>;}
+export function MockExams(){return <Assessment exam/>;}
 
 export function StudyPlanner() {
-  return <ComingSoon icon="📅" title="Study Planner" description="Create a structured study schedule based on your curriculum and available time." items={['Weekly study schedule', 'Topic-to-date assignment', 'Deadline reminders', 'Progress vs. plan tracking']} />;
+  const {blocked}=useProtected(),load=useLoad(()=>plannerAPI.getTasks(),blocked),tasks=unwrap(load.data,'tasks');
+  const blank={title:'',subject:'',topic:'',due_date:'',duration_minutes:30,priority:'medium',completed:false};
+  const [form,setForm]=useState(blank),[editing,setEditing]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  if(blocked)return <GuestGate/>;
+  const save=async e=>{e.preventDefault();setBusy(true);setError('');try{if(editing)await plannerAPI.updateTask(editing.id,{...form,duration_minutes:Number(form.duration_minutes)});else await plannerAPI.createTask({...form,duration_minutes:Number(form.duration_minutes)});setForm(blank);setEditing(null);load.reload();}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const edit=t=>{setEditing(t);setForm({title:t.title,subject:t.subject||'',topic:t.topic||'',due_date:t.due_date||'',duration_minutes:t.duration_minutes||30,priority:t.priority||'medium',completed:!!t.completed});};
+  const mutate=async(t,data)=>{try{await plannerAPI.updateTask(t.id,data);load.reload();}catch(e){setError(messageOf(e));}};
+  const del=async t=>{if(!window.confirm(`Delete “${t.title}” from your plan?`))return;try{await plannerAPI.deleteTask(t.id);load.reload();}catch(e){setError(messageOf(e));}};
+  const ordered=[...tasks].sort((a,b)=>(a.completed-b.completed)||String(a.due_date).localeCompare(String(b.due_date)));
+  return <Page title="Study planner" subtitle="Turn good intentions into dated, manageable study sessions."><ErrorBox error={error?new Error(error):load.error} retry={load.reload}/>{load.loading?<Loading/>:<div className="lp-grid"><form className="lp-card lp-col-4 lp-stack" onSubmit={save}><h2>{editing?'Edit session':'Add a session'}</h2><Input label="Task" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} required/><div className="lp-form"><Input label="Subject" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/><Input label="Topic" value={form.topic} onChange={e=>setForm({...form,topic:e.target.value})}/></div><div className="lp-form"><Input label="Due date" type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})} required/><Input label="Minutes" type="number" min="5" max="720" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/></div><Select label="Priority" value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></Select><div className="lp-row"><button disabled={busy} className="btn-lp btn-primary">{busy?'Saving…':editing?'Save changes':'Add to planner'}</button>{editing&&<button type="button" className="btn-lp btn-secondary" onClick={()=>{setEditing(null);setForm(blank);}}>Cancel</button>}</div></form>
+    <div className="lp-card lp-col-8"><div className="lp-between"><h2>Your plan</h2><span className="lp-pill">{tasks.filter(t=>t.completed).length} / {tasks.length} complete</span></div>{tasks.length?<div className="lp-list">{ordered.map(t=><div className="lp-list-item lp-between" key={t.id}><div><label className="checkbox-lp"><input type="checkbox" checked={!!t.completed} onChange={e=>mutate(t,{completed:e.target.checked})}/><span><strong style={{textDecoration:t.completed?'line-through':'none'}}>{t.title}</strong><span className="lp-muted lp-small" style={{display:'block'}}>{t.subject}{t.topic?` · ${t.topic}`:''} · {asDate(t.due_date)} · {t.duration_minutes} min</span></span></label></div><div className="lp-row"><span className="lp-pill">{t.priority}</span><button className="btn-lp btn-secondary btn-sm" onClick={()=>edit(t)}>Edit</button><button className="btn-lp btn-danger btn-sm" onClick={()=>del(t)}>Delete</button></div></div>)}</div>:<Empty title="A clear week starts here" text="Add one focused session and your plan will take shape."/ >}</div></div>}</Page>;
 }
 
 export function CrashMode() {
-  return <ComingSoon icon="⚡" title="One-Day Crash Mode" description="Last-minute exam prep: get a prioritized time-blocked study plan for the most important topics." items={['Select exam date and subjects', 'Auto-generated time-blocked schedule', 'Priority-ordered topic list', 'Quick revision resources']} />;
+  const {blocked}=useProtected(),[curriculum,setCurriculum]=useState(null),[tasks,setTasks]=useState([]),[form,setForm]=useState({deadline:'',daily_minutes:90}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null);
+  useEffect(()=>{if(blocked)return;curriculumAPI.getAll().then(setCurriculum).catch(setError);plannerAPI.getTasks().then(r=>setTasks(unwrap(r,'tasks'))).catch(()=>{});},[blocked]);
+  if(blocked)return <GuestGate/>;
+  const unfinished=curriculumOptions(curriculum).filter(t=>t.status!=='completed');
+  const generate=async e=>{e.preventDefault();setBusy(true);setError('');try{if(!plannerAPI.generateCrashPlan)throw new Error('The study-plan generator is not available yet. Please try again after it has been enabled.');const r=await plannerAPI.generateCrashPlan({deadline:form.deadline,daily_minutes:Number(form.daily_minutes)});setResult(r);setTasks([...r.tasks,...tasks]);}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  return <Page title="Crash plan" subtitle="Build a realistic revision schedule from unfinished curriculum and the time you have."><div className="lp-grid"><form className="lp-card lp-col-5 lp-stack" onSubmit={generate}><h2>Set your runway</h2><p className="lp-muted">Your unfinished topics are read from your curriculum. Generated sessions are saved directly to the planner.</p><Input label="Exam deadline" type="date" value={form.deadline} onChange={e=>setForm({...form,deadline:e.target.value})} min={new Date().toISOString().slice(0,10)} required/><Input label="Available minutes each day" type="number" min="15" max="720" value={form.daily_minutes} onChange={e=>setForm({...form,daily_minutes:e.target.value})} required/><div className="lp-pill">{unfinished.length} unfinished curriculum topics</div><button disabled={busy||!unfinished.length} className="btn-lp btn-primary">{busy?'Building schedule…':'Build revision schedule'}</button>{error&&<ErrorBox error={new Error(error)}/>}</form>
+    <div className="lp-card lp-col-7"><h2>Schedule outlook</h2>{result?<><p className="lp-muted">{result.scheduled_topics} of {result.total_topics} topics scheduled. {result.unscheduled_topics} will need extra time or a later deadline.</p><div className="lp-meter"><span style={{width:`${result.total_topics?Math.round(result.scheduled_topics/result.total_topics*100):0}%`}}/></div><h3 style={{marginTop:18}}>Added to your planner</h3>{result.tasks?.length?<div className="lp-list">{result.tasks.map(t=><div className="lp-list-item lp-between" key={t.id}><strong>{t.title}</strong><span className="lp-muted">{asDate(t.due_date)} · {t.duration_minutes} min</span></div>)}</div>:<Empty title="No sessions scheduled" text="Try a later deadline or more daily study time."/ >}</>:<><Empty title="A focused plan, not a cram list" text="Choose a deadline and daily budget. The schedule will prioritize your remaining course topics."/><h3 style={{marginTop:18}}>Upcoming planner sessions</h3>{tasks.length?<div className="lp-list">{tasks.slice(0,5).map(t=><div className="lp-topic-row" key={t.id}><span>{t.title}</span><span className="lp-muted">{asDate(t.due_date)}</span></div>)}</div>:<p className="lp-muted">No sessions saved yet.</p>}</>}</div>
+  </div></Page>;
 }
 
 export function ProgressAnalytics() {
-  return <ComingSoon icon="📊" title="Progress & Analytics" description="Visualize your learning progress, quiz scores, and weekly study activity." items={['Subject-wise progress bars', 'Weekly activity chart', 'Quiz score history', 'Topic completion heatmap']} />;
+  const {blocked}=useProtected();
+  const [progress,setProgress]=useState(null),[subjects,setSubjects]=useState(null),[activity,setActivity]=useState(null),[weak,setWeak]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const [p,s,a,w]=await Promise.all([analyticsAPI.getProgress(),analyticsAPI.getSubjectStats(),analyticsAPI.getActivityLog(),analyticsAPI.getWeakTopics()]);setProgress(p);setSubjects(unwrap(s,'subjects'));setActivity(unwrap(a,'activity'));setWeak(unwrap(w,'weak_topics'));}catch(e){setError(messageOf(e));}finally{setLoading(false);}},[]);
+  useEffect(()=>{if(!blocked)load();else setLoading(false);},[blocked,load]);
+  if(blocked)return <GuestGate/>;
+  return <Page title="Progress & analytics" subtitle="A grounded view of course coverage, assessment results, and the topics to revisit."><ErrorBox error={error?new Error(error):null} retry={load}/>{loading?<Loading/>:<div className="lp-grid">
+    <div className="lp-card lp-col-12"><div className="lp-between"><div><h2>Curriculum progress</h2><p className="lp-muted">Completion across your syllabus</p></div><strong style={{fontSize:32}}>{progress?.overall_progress??0}%</strong></div><div className="lp-meter"><span style={{width:`${progress?.overall_progress??0}%`}}/></div><div className="lp-row lp-muted lp-small" style={{marginTop:14}}><span>{progress?.completed??0} completed</span><span>{progress?.in_progress??0} in progress</span><span>{progress?.not_started??0} not started</span><span>{progress?.total_topics??0} total topics</span></div></div>
+    <div className="lp-card lp-col-7"><h2>By subject</h2>{subjects?.length?<div className="lp-stack">{subjects.map((s,i)=><div key={`${s.code||s.subject}-${i}`}><div className="lp-between"><strong>{s.subject}</strong><span className="lp-muted lp-small">{s.completed}/{s.total} · {s.percent}%</span></div><div className="lp-meter" style={{marginTop:8}}><span style={{width:`${s.percent}%`}}/></div></div>)}</div>:<Empty title="No subject statistics yet" text="Add subjects and topics to your curriculum to see coverage."/ >}</div>
+    <div className="lp-card lp-col-5"><h2>Topics to revisit</h2>{weak?.length?<div className="lp-list">{weak.map((w,i)=><div className="lp-list-item" key={`${w.subject}-${w.topic}-${i}`}><strong>{w.topic}</strong><div className="lp-muted lp-small">{w.subject} · {w.unit}</div><span className="lp-pill" style={{marginTop:7}}>{w.status}</span></div>)}</div>:<Empty title="No weak topics surfaced" text="You are in a good position. Keep your progress current."/ >}</div>
+    <div className="lp-card lp-col-12"><h2>Assessment activity</h2>{activity?.length?<div className="lp-table-wrap"><table className="lp-table"><thead><tr><th>Assessment</th><th>Type</th><th>Score</th><th>Date</th></tr></thead><tbody>{activity.map((a,i)=><tr key={`${a.taken_at}-${i}`}><td>{a.title}</td><td>{a.type}</td><td>{a.score}/{a.total}</td><td>{asDate(a.taken_at)}</td></tr>)}</tbody></table></div>:<Empty title="No completed assessments" text="Quiz and mock exam attempts will build this activity log."/ >}</div>
+  </div>}</Page>;
 }
 
 export function Settings() {
-  return <ComingSoon icon="⚙️" title="Settings" description="Manage your profile, preferences, and account settings." items={['Edit profile (name, degree, branch, year)', 'Preferred explanation language', 'Notification preferences', 'Account and data management']} />;
+  const {blocked}=useProtected(),{user,updateUser,logout}=useAuth();
+  const load=useLoad(()=>profileAPI.get(),blocked);
+  const [form,setForm]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirmDelete,setConfirmDelete]=useState(false),[typed,setTyped]=useState('');
+  useEffect(()=>{if(load.data)setForm({...load.data});},[load.data]);
+  if(blocked)return <GuestGate/>;
+  const save=async e=>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const result=await profileAPI.update(form);setForm({...result});updateUser(result);setNotice('Your profile preferences have been saved.');}catch(e){setError(messageOf(e));}finally{setBusy(false);}};
+  const signOut=async()=>{try{await authAPI.logout();}catch{}logout();};
+  const deleteAccount=async()=>{if(typed!=='DELETE')return;setBusy(true);setError('');try{await profileAPI.delete();logout();}catch(e){setError(messageOf(e));setBusy(false);}};
+  return <Page title="Settings" subtitle="Your profile, language, and account controls."><ErrorBox error={error?new Error(error):load.error}/>{notice&&<div className="lp-alert info" role="status">{notice}</div>}{load.loading||!form?<Loading/>:<div className="lp-grid">
+    <form className="lp-card lp-col-7 lp-stack" onSubmit={save}><h2>Profile & preferences</h2><div className="lp-form"><Input label="Name" value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})} required/><Input label="Email" type="email" value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} required/><Input label="Degree" value={form.degree||''} onChange={e=>setForm({...form,degree:e.target.value})}/><Input label="Branch / major" value={form.branch||''} onChange={e=>setForm({...form,branch:e.target.value})}/></div><Select label="Year of study" value={form.year||''} onChange={e=>setForm({...form,year:e.target.value})}><option value="">Choose year</option><option value="1">Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option><option value="5">Year 5+</option></Select><Select label="Preferred language" value={form.language||'English'} onChange={e=>setForm({...form,language:e.target.value})}><option>English</option><option>Hindi</option></Select><label className="checkbox-lp"><input type="checkbox" checked={!!form.notifications_enabled} onChange={e=>setForm({...form,notifications_enabled:e.target.checked})}/><span className="checkbox-lp-label"><strong>Study reminders</strong><br/>Allow reminders about your study plan and learning routine.</span></label><button disabled={busy} className="btn-lp btn-primary">{busy?'Saving…':'Save preferences'}</button></form>
+    <div className="lp-card lp-col-5 lp-stack"><h2>Session</h2><p className="lp-muted">Sign out of LearnPilot on this device.</p><button className="btn-lp btn-secondary" onClick={signOut}>Sign out</button><div className="lp-card lp-danger-zone"><h3>Delete account</h3><p className="lp-muted lp-small">This permanently removes your account and saved study data. This action cannot be undone.</p>{!confirmDelete?<button className="btn-lp btn-danger" onClick={()=>setConfirmDelete(true)}>Delete my account</button>:<div className="lp-stack"><label className="form-label" htmlFor="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" className="form-control-lp" value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off"/><div className="lp-row"><button disabled={typed!=='DELETE'||busy} className="btn-lp btn-danger" onClick={deleteAccount}>Permanently delete</button><button className="btn-lp btn-secondary" onClick={()=>{setConfirmDelete(false);setTyped('');}}>Cancel</button></div></div>}</div></div>
+  </div>}</Page>;
 }
 
-// Default exports for individual file imports
 export default MyLearning;

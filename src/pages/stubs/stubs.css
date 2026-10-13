@@ -1,0 +1,45 @@
+.lp-page { max-width: 1180px; margin: 0 auto; padding-bottom: 42px; }
+.lp-page .page-header { margin-bottom: 24px; }
+.lp-page .page-title { letter-spacing: -.035em; }
+.lp-grid { display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 18px; }
+.lp-col-4 { grid-column: span 4; } .lp-col-5 { grid-column: span 5; }
+.lp-col-6 { grid-column: span 6; } .lp-col-7 { grid-column: span 7; }
+.lp-col-8 { grid-column: span 8; } .lp-col-12 { grid-column: span 12; }
+.lp-stack { display:flex; flex-direction:column; gap:16px; }
+.lp-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.lp-between { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+.lp-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:16px; padding:20px; box-shadow:var(--shadow-xs); }
+.lp-card h2,.lp-card h3 { margin:0 0 12px; }
+.lp-muted { color:var(--color-text-secondary); }
+.lp-small { font-size:13px; }
+.lp-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.lp-form .form-group { margin:0; }
+.lp-form .wide { grid-column:1/-1; }
+.lp-list { display:flex; flex-direction:column; gap:10px; }
+.lp-list-item { border:1px solid var(--color-border); border-radius:12px; padding:14px; background:var(--color-surface); }
+.lp-pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:var(--color-primary-light); color:var(--color-primary-dark); font-size:12px; font-weight:600; }
+.lp-alert { padding:12px 14px; border-radius:10px; margin-bottom:16px; border:1px solid #e6b7b0; background:#fff3ef; color:#80372a; }
+.lp-alert.info { border-color:#c5dcd8; background:#eef7f4; color:#285b52; }
+.lp-empty { text-align:center; padding:30px 20px; border:1px dashed var(--color-border); border-radius:14px; background:var(--color-surface-2); }
+.lp-empty h3 { margin:0 0 7px; }
+.lp-meter { height:8px; background:var(--color-surface-2); border-radius:10px; overflow:hidden; }
+.lp-meter > span { display:block; height:100%; border-radius:inherit; background:var(--color-teal); transition:width .35s ease; }
+.lp-table-wrap { overflow:auto; }
+.lp-table { border-collapse:collapse; width:100%; font-size:14px; }
+.lp-table th,.lp-table td { padding:11px 12px; border-bottom:1px solid var(--color-border-light); text-align:left; }
+.lp-table th { color:var(--color-text-secondary); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+.lp-markdown { line-height:1.7; overflow-wrap:anywhere; }
+.lp-markdown h1,.lp-markdown h2,.lp-markdown h3 { margin:18px 0 8px; }
+.lp-markdown p,.lp-markdown ul,.lp-markdown ol { margin:8px 0; }
+.lp-markdown pre { overflow:auto; background:var(--color-surface-2); padding:12px; border-radius:9px; }
+.lp-chat { min-height:340px; max-height:55vh; overflow:auto; display:flex; flex-direction:column; gap:12px; padding:14px 0; }
+.lp-message { max-width:85%; padding:12px 14px; border-radius:14px; background:var(--color-surface-2); align-self:flex-start; }
+.lp-message.user { align-self:flex-end; background:var(--color-primary-light); }
+.lp-flip { min-height:230px; display:grid; place-items:center; text-align:center; cursor:pointer; perspective:800px; }
+.lp-flip-inner { width:100%; min-height:210px; display:grid; place-items:center; padding:28px; border-radius:16px; background:#f3f3e7; border:1px solid #e1e1ca; color:#323c36; transition:transform .25s; }
+.lp-flip-inner.revealed { background:#e8f3ef; transform:rotateY(3deg); }
+.lp-topic-row { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--color-border-light); }
+.lp-danger-zone { border-color:#e5b8ae; background:#fff9f7; }
+@media(max-width:850px) { .lp-col-4,.lp-col-5,.lp-col-6,.lp-col-7,.lp-col-8 { grid-column:span 12; } }
+@media(max-width:560px) { .lp-form { grid-template-columns:1fr; } .lp-form .wide { grid-column:auto; } .lp-card { padding:16px; } .lp-between { align-items:flex-start; flex-direction:column; } }
+@media(prefers-reduced-motion:reduce) { .lp-meter>span,.lp-flip-inner { transition:none; } }

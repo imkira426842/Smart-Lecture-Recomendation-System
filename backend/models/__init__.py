@@ -209,3 +209,26 @@ class PlannerTask(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="planner_tasks")
+
+
+class UserPreferences(Base):
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class QuizAttempt(Base):
+    """Persistent question set; answers are withheld until server-side grading."""
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    quiz_type: Mapped[str] = mapped_column(String(20), default="quiz")
+    title: Mapped[str] = mapped_column(String(500))
+    subject: Mapped[str | None] = mapped_column(String(255))
+    topic: Mapped[str | None] = mapped_column(String(255))
+    questions: Mapped[list] = mapped_column(JSON)
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=1800)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    submitted: Mapped[bool] = mapped_column(Boolean, default=False)
